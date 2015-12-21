@@ -182,8 +182,8 @@ void retro_deinit(void)
    //TODO
 }
 
-bool enable_rtt     = true;
-static bool is_dupe = false;
+bool enable_rtt = true;
+bool is_dupe    = false;
 
 static void update_variables(void)
 {
@@ -252,9 +252,29 @@ void retro_run (void)
    poll_cb();
    co_dc_run();
 #if defined(GL) || defined(GLES)
+   /* restore state */
+#ifdef CORE
+   glBindVertexArray(0);
+#endif
+   glDisable(GL_BLEND);
+   glDisable(GL_CULL_FACE);
+   glDisable(GL_SCISSOR_TEST);
+   glDisable(GL_DEPTH_TEST);
+   glBlendFunc(GL_ONE, GL_ZERO);
+   glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+   glCullFace(GL_BACK);
+   glDepthMask(GL_TRUE);
+   glUseProgram(0);
+   glClearColor(0,0,0,0.0f);
+   glStencilOp(GL_KEEP,GL_KEEP, GL_KEEP);
+
+   /* Clear textures */
+   glActiveTexture(GL_TEXTURE0);
+   glBindTexture(GL_TEXTURE_2D, 0);
+
+   glBindFramebuffer(GL_FRAMEBUFFER, 0);
    video_cb(is_dupe ? 0 : RETRO_HW_FRAME_BUFFER_VALID, screen_width, screen_height, 0);
 #endif
-   is_dupe = true;
 }
 
 void retro_reset (void)
@@ -313,6 +333,7 @@ bool retro_load_game(const struct retro_game_info *game)
    settings.dreamcast.cable = 3;
    screen_width  = 640;
    screen_height = 480;
+   is_dupe       = true;
    update_variables();
 
 #if defined(GL) || defined(GLES)
@@ -449,7 +470,11 @@ unsigned retro_api_version(void)
 //Reicast stuff
 void os_DoEvents(void)
 {
-   is_dupe = false;
+   /* is_dupe will eval to true if no frame was presented since the last call to os_DoEvents */
+   if (is_dupe)
+      co_dc_yield();
+
+   is_dupe = true;
 }
 
 void os_CreateWindow()
